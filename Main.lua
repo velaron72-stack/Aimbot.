@@ -14,8 +14,6 @@ local Config = {
     FOV = 200,
     Speed = 10,
     WallCheck = true,
-    AutoShoot = false,
-    KnifeOnly = true,
 }
 
 local KNIFE_NAMES = {
@@ -31,10 +29,6 @@ local KNIFE_NAMES = {
     "soul","skull","bone","death","reaper","grim","omega","alpha","beta",
 }
 
-local GUN_NAMES = {
-    "gun","revolver","pistol","luger","colt","handgun","firearm","weapon"
-}
-
 local function nameMatch(name, list)
     local n = name:lower()
     for _, k in ipairs(list) do
@@ -43,8 +37,9 @@ local function nameMatch(name, list)
     return false
 end
 
-local function isKnife(tool) return nameMatch(tool.Name, KNIFE_NAMES) end
-local function isGun(tool) return nameMatch(tool.Name, GUN_NAMES) end
+local function isKnife(tool)
+    return nameMatch(tool.Name, KNIFE_NAMES)
+end
 
 local function hasKnife(plr)
     if not plr.Character then return false end
@@ -58,6 +53,13 @@ local function hasKnife(plr)
         end
     end
     return false
+end
+
+local function getAimPart(plr)
+    if not plr.Character then return nil end
+    local head = plr.Character:FindFirstChild("Head")
+    if head then return head end
+    return plr.Character:FindFirstChild("HumanoidRootPart")
 end
 
 local function hasLineOfSight(targetPart)
@@ -75,17 +77,15 @@ local function findTarget()
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LP and plr.Character then
-            local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
             local hum = plr.Character:FindFirstChildOfClass("Humanoid")
-            if hrp and hum and hum.Health > 0 then
-                local ok = true
-                if Config.KnifeOnly then ok = hasKnife(plr) end
-                if ok then
-                    local sp, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            if hum and hum.Health > 0 and hasKnife(plr) then
+                local aimPart = getAimPart(plr)
+                if aimPart then
+                    local sp, onScreen = Camera:WorldToViewportPoint(aimPart.Position)
                     if onScreen then
                         local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-                        if d < bestDist and hasLineOfSight(hrp) then
-                            best, bestDist = hrp, d
+                        if d < bestDist and hasLineOfSight(aimPart) then
+                            best, bestDist = aimPart, d
                         end
                     end
                 end
@@ -97,19 +97,11 @@ end
 
 RunService:BindToRenderStep("MM2Aim", Enum.RenderPriority.Camera.Value + 1, function()
     if not Config.Enabled then return end
-    local hrp = findTarget()
-    if not hrp then return end
-    local goal = CFrame.new(Camera.CFrame.Position, hrp.Position)
+    local part = findTarget()
+    if not part then return end
+    local goal = CFrame.new(Camera.CFrame.Position, part.Position)
     local alpha = Config.Smoothing * (Config.Speed / 10)
     Camera.CFrame = Camera.CFrame:Lerp(goal, math.clamp(alpha, 0.01, 1))
-    if Config.AutoShoot then
-        local char = LP.Character
-        if char then
-            for _, t in ipairs(char:GetChildren()) do
-                if t:IsA("Tool") and isGun(t) then t:Activate() break end
-            end
-        end
-    end
 end)
 
 if PG:FindFirstChild("MM2AimGUI") then PG.MM2AimGUI:Destroy() end
@@ -183,10 +175,9 @@ toggleDot.BorderSizePixel = 0
 toggleDot.Parent = toggle
 Instance.new("UICorner", toggleDot).CornerRadius = UDim.new(1, 0)
 
-local menuW, menuH = 250, 420
 local menu = Instance.new("Frame")
 menu.Name = "Menu"
-menu.Size = UDim2.new(0, menuW, 0, menuH)
+menu.Size = UDim2.new(0, 250, 0, 340)
 menu.AnchorPoint = Vector2.new(1, 0)
 menu.Position = UDim2.new(1, -92, 0, 150)
 menu.BackgroundColor3 = BG_DEEP
@@ -436,8 +427,6 @@ makeSlider(scroll, 3, "FOV Radius", 50, 800, Config.FOV, function(v) Config.FOV 
 makeSlider(scroll, 4, "Speed", 1, 20, Config.Speed, function(v) Config.Speed = v end, "%.0f")
 
 makeToggle(scroll, 5, "Wall Check", Config.WallCheck, function(s) Config.WallCheck = s end)
-makeToggle(scroll, 6, "Auto Shoot", Config.AutoShoot, function(s) Config.AutoShoot = s end)
-makeToggle(scroll, 7, "Knife Only", Config.KnifeOnly, function(s) Config.KnifeOnly = s end)
 
 local dragging = false
 local dragStart, dragStartPos
